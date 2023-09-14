@@ -72,7 +72,23 @@ impl Client for reqwest::Client {
     }
 
     async fn get(&self, url: &Self::Url) -> Result<Self::Response, Self::Error> {
-        self.get(url.clone()).send().await
+        let head = self.head(url.clone()).send().await.unwrap();
+        // .content_length() returns Ok(0) for some reason? This doesn't tho
+        let content_length = head.headers().get("content-length").unwrap().to_str().unwrap().parse::<u32>().unwrap();
+        self.get(url.clone())
+            .header(
+                "Range",
+                format!(
+                    "bytes=0-{}",
+                    // needed for youtube to disable rate limiting
+                    // only works when content_length < 10MB
+                    // (see here)[https://tyrrrz.me/blog/reverse-engineering-youtube-revisited]
+                    // So I need to in theory implement multiple range requests
+                    // But I'm too lazy rn
+                    content_length,
+                ),
+            )
+            .send().await
     }
 
     async fn get_range(
